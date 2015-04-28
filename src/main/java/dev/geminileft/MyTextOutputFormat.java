@@ -1,5 +1,4 @@
-
-
+package dev.geminileft;
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -18,13 +17,13 @@
  * limitations under the License.
  */
 
-
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -32,23 +31,21 @@ import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.compress.CompressionCodec;
 import org.apache.hadoop.io.compress.GzipCodec;
-import org.apache.hadoop.mapred.FileOutputFormat;
-import org.apache.hadoop.mapred.JobConf;
-import org.apache.hadoop.mapred.RecordWriter;
-import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapreduce.OutputFormat;
-import org.apache.hadoop.util.Progressable;
+import org.apache.hadoop.mapreduce.RecordWriter;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.ReflectionUtils;
 
-/** 
- * An {@link OutputFormat} that writes plain text files. 
- */
+/** An {@link OutputFormat} that writes plain text files. */
 @InterfaceAudience.Public
 @InterfaceStability.Stable
-public class CustomTextOutputFormat<K, V> extends FileOutputFormat<K, V> {
-
+public class MyTextOutputFormat<K, V> extends FileOutputFormat<K, V> {
+	  public static String SEPERATOR = "mapreduce.output.textoutputformat.separator";
+	  public static String DELIMITER = "mapreduce.output.textoutputformat.delimiter";
+  
   protected static class LineRecordWriter<K, V>
-    implements RecordWriter<K, V> {
+    extends RecordWriter<K, V> {
     private static final String utf8 = "UTF-8";
 
     protected DataOutputStream out;
@@ -67,14 +64,14 @@ public class CustomTextOutputFormat<K, V> extends FileOutputFormat<K, V> {
           } catch (UnsupportedEncodingException uee) {
             throw new IllegalArgumentException("can't find " + utf8 + " encoding");
           }
-    }
-    
+      }
+
     public LineRecordWriter(DataOutputStream out, String keyValueSeparator) {
         this(out, keyValueSeparator, "\n");
-    }
+      }
 
     public LineRecordWriter(DataOutputStream out) {
-      this(out, "\t", "\n");
+      this(out, "\t");
     }
 
     /**
@@ -112,43 +109,38 @@ public class CustomTextOutputFormat<K, V> extends FileOutputFormat<K, V> {
       out.write(keyValueDelimiter);
     }
 
-    public synchronized void close(Reporter reporter) throws IOException {
+    public synchronized 
+    void close(TaskAttemptContext context) throws IOException {
       out.close();
     }
   }
 
-  public RecordWriter<K, V> getRecordWriter(FileSystem ignored,
-                                                  JobConf job,
-                                                  String name,
-                                                  Progressable progress)
-    throws IOException {
+  public RecordWriter<K, V> 
+         getRecordWriter(TaskAttemptContext job
+                         ) throws IOException, InterruptedException {
+    Configuration conf = job.getConfiguration();
     boolean isCompressed = getCompressOutput(job);
-    String keyValueSeparator = job.get("mapreduce.output.textoutputformat.separator", 
-            "\t");
-    String keyValueDelimiter = job.get("mapreduce.output.textoutputformat.delimiter", 
-            "\n");
+    String keyValueSeparator= conf.get(SEPERATOR, "\t");
+    String keyValueDelimiter= conf.get(DELIMITER, "\n");
+    CompressionCodec codec = null;
+    String extension = "";
+    if (isCompressed) {
+      Class<? extends CompressionCodec> codecClass = 
+        getOutputCompressorClass(job, GzipCodec.class);
+      codec = (CompressionCodec) ReflectionUtils.newInstance(codecClass, conf);
+      extension = codec.getDefaultExtension();
+    }
+    Path file = getDefaultWorkFile(job, extension);
+    FileSystem fs = file.getFileSystem(conf);
     if (!isCompressed) {
-      Path file = FileOutputFormat.getTaskOutputPath(job, name);
-      FileSystem fs = file.getFileSystem(job);
-      FSDataOutputStream fileOut = fs.create(file, progress);
+      FSDataOutputStream fileOut = fs.create(file, false);
       return new LineRecordWriter<K, V>(fileOut, keyValueSeparator, keyValueDelimiter);
     } else {
-      Class<? extends CompressionCodec> codecClass =
-        getOutputCompressorClass(job, GzipCodec.class);
-      // create the named codec
-      CompressionCodec codec = ReflectionUtils.newInstance(codecClass, job);
-      // build the filename including the extension
-      Path file = 
-        FileOutputFormat.getTaskOutputPath(job, 
-                                           name + codec.getDefaultExtension());
-      FileSystem fs = file.getFileSystem(job);
-      FSDataOutputStream fileOut = fs.create(file, progress);
+      FSDataOutputStream fileOut = fs.create(file, false);
       return new LineRecordWriter<K, V>(new DataOutputStream
                                         (codec.createOutputStream(fileOut)),
-                                        keyValueSeparator);
+                                        keyValueSeparator, keyValueDelimiter);
     }
   }
 }
-
-
 
