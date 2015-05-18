@@ -13,7 +13,7 @@ import org.apache.hadoop.mapreduce.Reducer;
 
 import dev.geminileft.mappers.TwoPartMapper;
 
-public class TwoPartCacheReducer extends Reducer<Text,FloatWritable,Text,FloatWritable> {
+public class TwoPartACacheReducer extends Reducer<Text,FloatWritable,Text,FloatWritable> {
 	
 	private static final int CACHE_FILE_INDEX = 0;
 	private static final String DELIMITER = ",";
