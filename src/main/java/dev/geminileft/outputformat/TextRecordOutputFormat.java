@@ -1,4 +1,4 @@
-package dev.geminileft;
+package dev.geminileft.outputformat;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -14,33 +14,33 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
 public class TextRecordOutputFormat<K> extends FileOutputFormat<K, Text> {
-	
+
 	public static String DELIMITER_CONFIG = "textrecordoutputformat.delimiter";
-	
+
 	public static class TextRecordWriter<K> extends RecordWriter<K, Text> {
-		
+
 		private static String ENCODING = "UTF-8";
-	    private DataOutputStream mOutputStream;
-	    private byte[] mDelimiter;
+		private DataOutputStream mOutputStream;
+		private byte[] mDelimiter;
 
-	    public TextRecordWriter(DataOutputStream stream, String delimiter) throws UnsupportedEncodingException {
-	        mOutputStream = stream;
-	        mDelimiter = delimiter.getBytes(ENCODING);
-	    }
+		public TextRecordWriter(DataOutputStream stream, String delimiter) throws UnsupportedEncodingException {
+			mOutputStream = stream;
+			mDelimiter = delimiter.getBytes(ENCODING);
+		}
 
-	    @Override
-	    public void close(TaskAttemptContext context) throws IOException, InterruptedException {
-	        //close our file
-	        mOutputStream.close();
-	    }
+		@Override
+		public void close(TaskAttemptContext context) throws IOException, InterruptedException {
+			//close our file
+			mOutputStream.close();
+		}
 
-	    @Override
-	    public void write(K key, Text value) throws IOException, InterruptedException {
-	        mOutputStream.write(value.toString().getBytes(ENCODING));
-	        mOutputStream.write(mDelimiter);
-	    }
+		@Override
+		public void write(K key, Text value) throws IOException, InterruptedException {
+			mOutputStream.write(value.toString().getBytes(ENCODING));
+			mOutputStream.write(mDelimiter);
+		}
 	}
-	
+
 	@Override
 	public RecordWriter<K, Text> getRecordWriter(TaskAttemptContext context)
 			throws IOException, InterruptedException {
